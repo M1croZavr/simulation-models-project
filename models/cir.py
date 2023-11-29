@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from scipy import stats
+from scipy import optimize, special, stats
 
 
 class CoxIngersollRossModel:
@@ -51,21 +51,34 @@ class CoxIngersollRossModel:
         self.sigma = sigma
         return
 
-    def __calculate_negative_likelihood(self, parameters, interest_rate: pd.Series):
+    def __calculate_negative_log_likelihood(self, parameters, interest_rate: pd.Series):
+        # https://www.youtube.com/watch?v=0efIB2vzvL0&ab_channel=AnhH.Le
         a, b, sigma = parameters
-        u = interest_rate.iloc[1:] - interest_rate.iloc[:-1]
-        v = a * (b - interest_rate.iloc[:-1])
-        w = u - v
-        x = (1 / (sigma * np.sqrt(interest_rate.iloc[1:]) * (2 * np.pi) ** 0.5))\
-            * np.exp((- w ** 2) / (2 * (sigma * np.sqrt(interest_rate.iloc[1:])) ** 2))
-        return -1 * np.sum(np.log(x))
+        c = (2 * a) / (sigma ** 2 * (1 - np.exp(-a)))
+        u_t = c * interest_rate.iloc[:-1] * np.exp(-a)
+        v_t1 = c * interest_rate.iloc[1:]
+        q = (2 * a * b) / sigma ** 2 - 1
+
+        N = len(interest_rate)
+        L = (N - 1) * np.log(c) + np.sum(
+            -1 * u_t - v_t1 + (q / 2) * np.log(v_t1 / u_t) + np.log(special.ive(q, 2 * np.sqrt(u_t * v_t1))) + 2 * np.sqrt(u_t * v_t1)
+        )
+        return -1 * L
+
+        # u = interest_rate.iloc[1:] - interest_rate.iloc[:-1]
+        # v = a * (b - interest_rate.iloc[:-1])
+        # w = u - v
+        # x = (1 / (sigma * np.sqrt(interest_rate.iloc[1:]) * (2 * np.pi) ** 0.5))\
+        #     * np.exp((- w ** 2) / (2 * (sigma * np.sqrt(interest_rate.iloc[1:])) ** 2))
+        # return -1 * np.sum(np.log(x))
 
     def optimize_negative_likelihood(self, interest_rate: pd.Series):
         mle_result = optimize.minimize(
-            self.__calculate_negative_likelihood,
+            self.__calculate_negative_log_likelihood,
             [self.a, self.b, self.sigma],
             args=(interest_rate,)
         )
+        self.a, self.b, self.sigma = mle_result.x
         return mle_result
 
     def make_interest_rate_simulations(self, r0, n_simulations, t_steps):
