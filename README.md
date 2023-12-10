@@ -1,4 +1,4 @@
-<mark>Итоговый ноутбук с симуляциями, Range Accrual и графиками в ноутбуке Range accrual pricing.ipynb</mark>
+**Итоговый ноутбук с симуляциями, Range Accrual и графиками в ноутбуке Range accrual pricing.ipynb**
 
 Для создания модели 3-ч скоррелированных между собой риск-факторов были взяты дневные данные по процентным ставкам USD - SOFR; RUR - MOSPRIME.
 
