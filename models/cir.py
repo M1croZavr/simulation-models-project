@@ -17,6 +17,8 @@ class CoxIngersollRossModel:
         Long-run mean.
     sigma: float
         Volatility rate.
+    delta_t: float
+        Date step between two points.
 
     Methods
     -------
@@ -28,24 +30,25 @@ class CoxIngersollRossModel:
         Make simulations by the Euler-Maruyama approximation method.
     """
 
-    def __init__(self):
+    def __init__(self, delta_t: float):
         self.a = None
         self.b = None
         self.sigma = None
+        self.delta_t = delta_t
 
     def __str__(self):
         return f'CIR(a={self.a}, b={self.b}, sigma={self.sigma})'
 
     def estimate_ols(self, interest_rate: pd.Series):
         y = (interest_rate.iloc[1:].values - interest_rate.iloc[:-1].values) / np.sqrt(np.abs(interest_rate.iloc[:-1].values))
-        x1 = 1 / np.sqrt(np.abs(interest_rate.iloc[:-1]))
-        x2 = np.sqrt(np.abs(interest_rate.iloc[:-1]))
+        x1 = self.delta_t / np.sqrt(np.abs(interest_rate.iloc[:-1]))
+        x2 = self.delta_t * np.sqrt(np.abs(interest_rate.iloc[:-1]))
         X = np.hstack((x1.values.reshape(-1, 1), x2.values.reshape(-1, 1)))
 
         w = np.linalg.inv(X.T @ X) @ X.T @ y
         a = -1 * w[1]
         b = w[0] / a
-        sigma = (1 / len(y) ** 0.5) * np.sqrt(np.sum((y - (X @ w)) ** 2))
+        sigma = (1 / (len(y) * self.delta_t) ** 0.5) * np.sqrt(np.sum((y - (X @ w)) ** 2))
         self.a = a
         self.b = b
         self.sigma = sigma
@@ -54,8 +57,8 @@ class CoxIngersollRossModel:
     def __calculate_negative_log_likelihood(self, parameters, interest_rate: pd.Series):
         # https://www.youtube.com/watch?v=0efIB2vzvL0&ab_channel=AnhH.Le
         a, b, sigma = parameters
-        c = (2 * a) / (sigma ** 2 * (1 - np.exp(-a)))
-        u_t = c * interest_rate.iloc[:-1] * np.exp(-a)
+        c = (2 * a) / (sigma ** 2 * (1 - np.exp(-a * self.delta_t)))
+        u_t = c * interest_rate.iloc[:-1] * np.exp(-a * self.delta_t)
         v_t1 = c * interest_rate.iloc[1:]
         q = (2 * a * b) / sigma ** 2 - 1
 
@@ -89,7 +92,7 @@ class CoxIngersollRossModel:
             r = np.hstack(
                 (
                     r,
-                    r_previous + self.a * (self.b - r_previous) + self.sigma * np.sqrt(np.abs(r_previous)) * wiener_multiplier
+                    r_previous + self.a * (self.b - r_previous) * self.delta_t + self.sigma * np.sqrt(np.abs(r_previous) * self.delta_t) * wiener_multiplier
                 )
             )
         last_t_simulation = r[:, -1]
